@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Car Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-rows: 80px 1fr 60px;
+            height: 100vh;
+            padding: 15px;
+            gap: 15px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 15px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .time {
+            font-size: 2.5em;
+            font-weight: 700;
+            letter-spacing: -1px;
+        }
+
+        .date {
+            font-size: 1em;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+
+        .weather {
+            text-align: right;
+        }
+
+        .temp {
+            font-size: 2.5em;
+            font-weight: 700;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            overflow: hidden;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow-y: auto;
+        }
+
+        .card h2 {
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-bar {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .nav-btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            background: transparent;
+            color: #fff;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .nav-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .nav-btn.active {
+            background: rgba(30, 144, 255, 0.3);
+        }
+
+        .nav-btn svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .spotify-player {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .album-art {
+            width: 100%;
+            aspect-ratio: 1;
+            background: linear-gradient(135deg, #1db954 0%, #191414 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4em;
+            overflow: hidden;
+        }
+
+        .album-art img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .track-info {
+            text-align: center;
+        }
+
+        .track-name {
+            font-size: 1.3em;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .artist-name {
+            opacity: 0.7;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 10px;
+        }
+
+        .control-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+        }
+
+        .control-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .control-btn.play {
+            width: 60px;
+            height: 60px;
+            background: #1db954;
+        }
+
+        .departure {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .line-badge {
+            background: #ff6b6b;
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 1.2em;
+        }
+
+        .departure-info {
+            flex: 1;
+        }
+
+        .destination {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .platform {
+            opacity: 0.7;
+            font-size: 0.9em;
+        }
+
+        .time-info {
+            text-align: right;
+        }
+
+        .eta {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: #4ecdc4;
+        }
+
+        .scheduled {
+            opacity: 0.7;
+            font-size: 0.9em;
+        }
+
+        #map {
+            height: 100%;
+            border-radius: 10px;
+            background: #1a1a2e;
+        }
+
+        .speed-display {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 15px;
+            z-index: 1000;
+            min-width: 120px;
+            text-align: center;
+        }
+
+        .current-speed {
+            font-size: 3em;
+            font-weight: 700;
+            color: #4ecdc4;
+        }
+
+        .speed-limit {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .limit-value {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: #ff6b6b;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            font-size: 1em;
+            margin-bottom: 10px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            background: #1e90ff;
+            color: #fff;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #1873cc;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .search-box {
+            margin-bottom: 15px;
+        }
+
+        .setup-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .setup-form label {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .status-msg {
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .status-msg.error {
+            background: rgba(255, 107, 107, 0.2);
+        }
+
+        .status-msg.success {
+            background: rgba(78, 205, 196, 0.2);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #1db954;
+            transition: width 1s linear;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <div>
+                <div class="time" id="time">12:00</div>
+                <div class="date" id="date">Friday, January 09</div>
+            </div>
+            <div class="weather">
+                <div class="temp" id="temp">--°C</div>
+                <div class="date" id="weather-desc">Loading...</div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- Spotify Card -->
+            <div class="card hidden" id="spotify-card">
+                <h2>🎵 Spotify</h2>
+                <div id="spotify-setup" class="setup-form">
+                    <div class="status-msg" id="spotify-status" style="display:none;"></div>
+                    <label>Spotify Client ID:</label>
+                    <input type="text" id="spotify-client-id" placeholder="Enter your Client ID">
+                    <label>Spotify Client Secret:</label>
+                    <input type="password" id="spotify-client-secret" placeholder="Enter your Client Secret">
+                    <button id="spotify-auth">Authorize Spotify</button>
+                    <div style="font-size: 0.85em; opacity: 0.7; margin-top: 10px;">
+                        Get credentials from <a href="https://developer.spotify.com/dashboard" target="_blank" style="color: #1db954;">Spotify Dashboard</a>. 
+                        Set redirect URI to your current page URL.
+                    </div>
+                </div>
+                <div class="spotify-player hidden" id="spotify-player">
+                    <div class="album-art" id="album-art">🎵</div>
+                    <div class="track-info">
+                        <div class="track-name" id="track-name">No track playing</div>
+                        <div class="artist-name" id="artist-name">Connect your account</div>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="track-progress"></div>
+                    </div>
+                    <div class="controls">
+                        <button class="control-btn" id="prev-btn">⏮</button>
+                        <button class="control-btn play" id="play-btn">▶</button>
+                        <button class="control-btn" id="next-btn">⏭</button>
+                    </div>
+                    <button id="spotify-logout" style="background: rgba(255,255,255,0.1); margin-top: 10px;">Disconnect</button>
+                </div>
+            </div>
+
+            <!-- PIDS Card -->
+            <div class="card hidden" id="pids-card">
+                <h2>🚊 Public Transport</h2>
+                <div id="transport-setup" class="setup-form">
+                    <div class="status-msg" id="transport-status" style="display:none;"></div>
+                    <label>TransportAPI App ID:</label>
+                    <input type="text" id="transport-app-id" placeholder="Your App ID">
+                    <label>TransportAPI App Key:</label>
+                    <input type="password" id="transport-app-key" placeholder="Your App Key">
+                    <button id="transport-save">Save & Search</button>
+                    <div style="font-size: 0.85em; opacity: 0.7; margin-top: 10px;">
+                        Get free API key from <a href="https://www.transportapi.com/" target="_blank" style="color: #4ecdc4;">TransportAPI</a>
+                    </div>
+                </div>
+                <div class="search-box hidden" id="transport-search">
+                    <input type="text" id="station-search" placeholder="e.g., Newcastle, Waterloo, Victoria">
+                    <button id="search-btn">Search Departures</button>
+                </div>
+                <div id="departures"></div>
+            </div>
+
+            <!-- Navigation Card -->
+            <div class="card" id="nav-card">
+                <h2>🗺️ Navigation</h2>
+                <div class="search-box">
+                    <input type="text" id="destination" placeholder="Enter destination">
+                    <button id="navigate-btn">Navigate</button>
+                </div>
+                <div style="position: relative; height: calc(100% - 100px);">
+                    <div class="speed-display">
+                        <div class="current-speed" id="current-speed">0</div>
+                        <div style="font-size: 0.9em; opacity: 0.7;">km/h</div>
+                        <div class="speed-limit">
+                            <div style="font-size: 0.9em; opacity: 0.7;">Limit</div>
+                            <div class="limit-value" id="speed-limit">--</div>
+                        </div>
+                    </div>
+                    <div id="map"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="nav-bar">
+            <button class="nav-btn" data-view="spotify">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+                <span>Spotify</span>
+            </button>
+            <button class="nav-btn" data-view="pids">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                <span>Transit</span>
+            </button>
+            <button class="nav-btn active" data-view="nav">
+                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg>
+                <span>Navigate</span>
+            </button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script>
+        // State management
+        const state = {
+            spotify: { token: null, refreshToken: null, clientId: null, clientSecret: null },
+            transport: { appId: null, appKey: null },
+            location: { lat: 54.9783, lon: -1.6178 } // Newcastle
+        };
+
+        // Load saved credentials
+        const savedSpotify = localStorage.getItem('spotify_creds');
+        if (savedSpotify) {
+            const creds = JSON.parse(savedSpotify);
+            state.spotify = { ...state.spotify, ...creds };
+            if (state.spotify.token) {
+                showSpotifyPlayer();
+                initSpotifyPlayer();
+            }
+        }
+
+        const savedTransport = localStorage.getItem('transport_creds');
+        if (savedTransport) {
+            state.transport = JSON.parse(savedTransport);
+            document.getElementById('transport-setup').classList.add('hidden');
+            document.getElementById('transport-search').classList.remove('hidden');
+        }
+
+        // Time and Date
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('time').textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('date').textContent = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+        }
+        updateTime();
+        setInterval(updateTime, 1000);
+
+        // Weather API (OpenWeatherMap)
+        async function updateWeather() {
+            try {
+                const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${state.location.lat}&longitude=${state.location.lon}&current_weather=true`);
+                const data = await res.json();
+                document.getElementById('temp').textContent = Math.round(data.current_weather.temperature) + '°C';
+                const weatherCodes = {
+                    0: 'Clear', 1: 'Mainly Clear', 2: 'Partly Cloudy', 3: 'Overcast',
+                    45: 'Foggy', 48: 'Foggy', 51: 'Drizzle', 61: 'Rain', 71: 'Snow', 95: 'Thunderstorm'
+                };
+                document.getElementById('weather-desc').textContent = weatherCodes[data.current_weather.weathercode] || 'Clear';
+            } catch (e) {
+                console.error('Weather error:', e);
+            }
+        }
+        updateWeather();
+
+        // Navigation between views
+        const navBtns = document.querySelectorAll('.nav-btn');
+        const cards = document.querySelectorAll('.card');
+
+        navBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = btn.dataset.view;
+                navBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                cards.forEach(c => c.classList.add('hidden'));
+                document.getElementById(`${view}-card`).classList.remove('hidden');
+                
+                if (view === 'nav' && !map) {
+                    initMap();
+                }
+            });
+        });
+
+        // SPOTIFY OAUTH
+        const REDIRECT_URI = window.location.origin + window.location.pathname;
+        const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
+
+        document.getElementById('spotify-auth').addEventListener('click', () => {
+            const clientId = document.getElementById('spotify-client-id').value;
+            const clientSecret = document.getElementById('spotify-client-secret').value;
+            
+            if (!clientId || !clientSecret) {
+                showStatus('spotify-status', 'Please enter both Client ID and Secret', 'error');
+                return;
+            }
+
+            state.spotify.clientId = clientId;
+            state.spotify.clientSecret = clientSecret;
+            
+            const authUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}`;
+            window.location.href = authUrl;
+        });
+
+        // Handle OAuth callback
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        if (code && state.spotify.clientId) {
+            exchangeSpotifyCode(code);
+        }
+
+        async function exchangeSpotifyCode(code) {
+            try {
+                const res = await fetch('https://accounts.spotify.com/api/token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Authorization': 'Basic ' + btoa(state.spotify.clientId + ':' + state.spotify.clientSecret)
+                    },
+                    body: `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
+                });
+                
+                const data = await res.json();
+                if (data.access_token) {
+                    state.spotify.token = data.access_token;
+                    state.spotify.refreshToken = data.refresh_token;
+                    
+                    localStorage.setItem('spotify_creds', JSON.stringify(state.spotify));
+                    
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    
+                    showSpotifyPlayer();
+                    initSpotifyPlayer();
+                }
+            } catch (e) {
+                showStatus('spotify-status', 'Authorization failed: ' + e.message, 'error');
+            }
+        }
+
+        function showSpotifyPlayer() {
+            document.getElementById('spotify-setup').classList.add('hidden');
+            document.getElementById('spotify-player').classList.remove('hidden');
+        }
+
+        async function initSpotifyPlayer() {
+            if (!state.spotify.token) return;
+            
+            updateCurrentTrack();
+            setInterval(updateCurrentTrack, 3000);
+        }
+
+        async function updateCurrentTrack() {
+            try {
+                const res = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+                    headers: { 'Authorization': 'Bearer ' + state.spotify.token }
+                });
+                
+                if (res.status === 204) {
+                    document.getElementById('track-name').textContent = 'No track playing';
+                    document.getElementById('artist-name').textContent = 'Open Spotify and play something';
+                    return;
+                }
+                
+                const data = await res.json();
+                if (data.item) {
+                    document.getElementById('track-name').textContent = data.item.name;
+                    document.getElementById('artist-name').textContent = data.item.artists.map(a => a.name).join(', ');
+                    
+                    if (data.item.album.images[0]) {
+                        document.getElementById('album-art').innerHTML = `<img src="${data.item.album.images[0].url}" alt="Album">`;
+                    }
+                    
+                    const progress = (data.progress_ms / data.item.duration_ms) * 100;
+                    document.getElementById('track-progress').style.width = progress + '%';
+                    
+                    document.getElementById('play-btn').textContent = data.is_playing ? '⏸' : '▶';
+                }
+            } catch (e) {
+                console.error('Spotify error:', e);
+            }
+        }
+
+        async function spotifyControl(action) {
+            try {
+                await fetch(`https://api.spotify.com/v1/me/player/${action}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + state.spotify.token }
+                });
+                setTimeout(updateCurrentTrack, 500);
+            } catch (e) {
+                console.error('Control error:', e);
+            }
+        }
+
+        document.getElementById('play-btn').addEventListener('click', () => {
+            const isPaused = document.getElementById('play-btn').textContent === '▶';
+            spotifyControl(isPaused ? 'play' : 'pause');
+        });
+
+        document.getElementById('prev-btn').addEventListener('click', () => spotifyControl('previous'));
+        document.getElementById('next-btn').addEventListener('click', () => spotifyControl('next'));
+
+        document.getElementById('spotify-logout').addEventListener('click', () => {
+            state.spotify = { token: null, refreshToken: null, clientId: null, clientSecret: null };
+            localStorage.removeItem('spotify_creds');
+            document.getElementById('spotify-setup').classList.remove('hidden');
+            document.getElementById('spotify-player').classList.add('hidden');
+        });
+
+        // TRANSPORT API
+        document.getElementById('transport-save').addEventListener('click', () => {
+            const appId = document.getElementById('transport-app-id').value;
+            const appKey = document.getElementById('transport-app-key').value;
+            
+            if (!appId || !appKey) {
+                showStatus('transport-status', 'Please enter both App ID and Key', 'error');
+                return;
+            }
+            
+            state.transport = { appId, appKey };
+            localStorage.setItem('transport_creds', JSON.stringify(state.transport));
+            
+            document.getElementById('transport-setup').classList.add('hidden');
+            document.getElementById('transport-search').classList.remove('hidden');
+            showStatus('transport-status', 'Credentials saved!', 'success');
+        });
+
+        document.getElementById('search-btn').addEventListener('click', async () => {
+            const station = document.getElementById('station-search').value.trim();
+            if (!station) return;
+
+            try {
+                // First, find the station
+                const stationRes = await fetch(`https://transportapi.com/v3/uk/places.json?query=${encodeURIComponent(station)}&type=train_station&app_id=${state.transport.appId}&app_key=${state.transport.appKey}`);
+                const stationData = await stationRes.json();
+                
+                if (!stationData.member || stationData.member.length === 0) {
+                    document.getElementById('departures').innerHTML = '<div class="status-msg error">Station not found</div>';
+                    return;
+                }
+                
+                const stationCode = stationData.member[0].station_code;
+                
+                // Get live departures
+                const depRes = await fetch(`https://transportapi.com/v3/uk/train/station/${stationCode}/live.json?app_id=${state.transport.appId}&app_key=${state.transport.appKey}&darwin=false&train_status=passenger`);
+                const depData = await depRes.json();
+                
+                if (!depData.departures || !depData.departures.all || depData.departures.all.length === 0) {
+                    document.getElementById('departures').innerHTML = '<div class="status-msg error">No departures found</div>';
+                    return;
+                }
+                
+                const colors = ['#ff6b6b', '#4ecdc4', '#95e1d3', '#f38181', '#a8e6cf'];
+                
+                const html = depData.departures.all.slice(0, 6).map((dep, i) => {
+                    const etaMins = Math.round((new Date(dep.aimed_departure_time) - new Date()) / 60000);
+                    return `
+                        <div class="departure">
+                            <div class="line-badge" style="background: ${colors[i % colors.length]};">${dep.operator_name.substring(0, 3).toUpperCase()}</div>
+                            <div class="departure-info">
+                                <div class="destination">${dep.destination_name}</div>
+                                <div class="platform">Platform ${dep.platform || 'TBA'}</div>
+                            </div>
+                            <div class="time-info">
+                                <div class="eta">${etaMins > 0 ? etaMins + ' min' : 'Due'}</div>
+                                <div class="scheduled">${dep.aimed_departure_time.substring(11, 16)}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+                document.getElementById('departures').innerHTML = html;
+                
+            } catch (e) {
+                console.error('Transport error:', e);
+                document.getElementById('departures').innerHTML = `<div class="status-msg error">Error: ${e.message}</div>`;
+            }
+        });
+
+        // MAP & NAVIGATION
+        let map, marker, routeLayer;
+
+        function initMap() {
+            if (map) return;
+            
+            map = L.map('map').setView([state.location.lat, state.location.lon], 13);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            marker = L.marker([state.location.lat, state.location.lon]).addTo(map);
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(position => {
+                    state.location.lat = position.coords.latitude;
+                    state.location.lon = position.coords.longitude;
+                    marker.setLatLng([state.location.lat, state.location.lon]);
+                    map.setView([state.location.lat, state.location.lon]);
+                    
+                    const speed = position.coords.speed ? Math.round(position.coords.speed * 3.6) : 0;
+                    document.getElementById('current-speed').textContent = speed;
+                    
+                    // Get speed limit from Overpass API
+                    getSpeedLimit(state.location.lat, state.location.lon);
+                });
+            }
+        }
+
+        async function getSpeedLimit(lat, lon) {
+            try {
+                const query = `[out:json];way(around:50,${lat},${lon})["maxspeed"];out body;`;
+                const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+                const data = await res.json();
+                
+                if (data.elements && data.elements.length > 0) {
+                    const maxspeed = data.elements[0].tags.maxspeed;
+                    const speed = maxspeed.replace(/[^0-9]/g, '');
+                    if (speed) {
+                        document.getElementById('speed-limit').textContent = speed;
+                    }
+                }
+            } catch (e) {
+                console.error('Speed limit error:', e);
+            }
+        }
+
+        document.getElementById('navigate-btn').addEventListener('click', async () => {
+            const destination = document.getElementById('destination').value;
+            if (!destination) return;
+
+            try {
+                const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(destination)}`);
+                const geoData = await geoRes.json();
+                
+                if (geoData.length > 0) {
+                    const dest = [parseFloat(geoData[0].lat), parseFloat(geoData[0].lon)];
+                    
+                    const routeRes = await fetch(`https://router.project-osrm.org/route/v1/driving/${state.location.lon},${state.location.lat};${dest[1]},${dest[0]}?overview=full&geometries=geojson`);
+                    const routeData = await routeRes.json();
+                    
+                    if (routeData.routes && routeData.routes.length > 0) {
+                        if (routeLayer) map.removeLayer(routeLayer);
+                        
+                        routeLayer = L.geoJSON(routeData.routes[0].geometry, {
+                            style: { color: '#1e90ff', weight: 5 }
+                        }).addTo(map);
+                        
+                        map.fitBounds(routeLayer.getBounds());
+                        
+                        L.marker(dest).addTo(map).bindPopup(destination).openPopup();
+                    }
+                }
+            } catch (error) {
+                console.error('Navigation error:', error);
+            }
+        });
+
+        function showStatus(id, msg, type) {
+            const el = document.getElementById(id);
+            el.textContent = msg;
+            el.className = 'status-msg ' + type;
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 5000);
+        }
+
+        initMap();
+    </script>
+</body>
+</html>
