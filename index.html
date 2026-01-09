@@ -477,12 +477,24 @@
         // Load saved credentials
         const savedSpotify = localStorage.getItem('spotify_creds');
         if (savedSpotify) {
-            const creds = JSON.parse(savedSpotify);
-            state.spotify = { ...state.spotify, ...creds };
-            if (state.spotify.token) {
-                showSpotifyPlayer();
-                initSpotifyPlayer();
+            try {
+                const creds = JSON.parse(savedSpotify);
+                state.spotify = { ...state.spotify, ...creds };
+                if (state.spotify.token) {
+                    showSpotifyPlayer();
+                    initSpotifyPlayer();
+                }
+            } catch (e) {
+                console.error('Error loading Spotify creds:', e);
             }
+        }
+
+        // Fill in saved credentials if they exist
+        if (state.spotify.clientId) {
+            document.getElementById('spotify-client-id').value = state.spotify.clientId;
+        }
+        if (state.spotify.clientSecret) {
+            document.getElementById('spotify-client-secret').value = state.spotify.clientSecret;
         }
 
         const savedTransport = localStorage.getItem('transport_creds');
@@ -541,8 +553,8 @@
         const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
 
         document.getElementById('spotify-auth').addEventListener('click', () => {
-            const clientId = document.getElementById('spotify-client-id').value;
-            const clientSecret = document.getElementById('spotify-client-secret').value;
+            const clientId = document.getElementById('spotify-client-id').value.trim();
+            const clientSecret = document.getElementById('spotify-client-secret').value.trim();
             
             if (!clientId || !clientSecret) {
                 showStatus('spotify-status', 'Please enter both Client ID and Secret', 'error');
@@ -552,6 +564,9 @@
             state.spotify.clientId = clientId;
             state.spotify.clientSecret = clientSecret;
             
+            // Save client credentials separately so they persist through redirect
+            localStorage.setItem('spotify_client_creds', JSON.stringify({ clientId, clientSecret }));
+            
             const authUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}`;
             window.location.href = authUrl;
         });
@@ -559,7 +574,16 @@
         // Handle OAuth callback
         const urlParams = new URLSearchParams(window.location.search);
         const code = urlParams.get('code');
-        if (code && state.spotify.clientId) {
+        
+        // Load client credentials from localStorage if available
+        const savedCreds = localStorage.getItem('spotify_client_creds');
+        if (savedCreds && !state.spotify.clientId) {
+            const creds = JSON.parse(savedCreds);
+            state.spotify.clientId = creds.clientId;
+            state.spotify.clientSecret = creds.clientSecret;
+        }
+        
+        if (code && state.spotify.clientId && state.spotify.clientSecret) {
             exchangeSpotifyCode(code);
         }
 
@@ -604,28 +628,48 @@
         }
 
         async function updateCurrentTrack() {
+            if (!state.spotify.token) return;
+            
             try {
                 const res = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
                     headers: { 'Authorization': 'Bearer ' + state.spotify.token }
                 });
                 
+                if (res.status === 401) {
+                    // Token expired, try to refresh
+                    console.log('Token expired, need to re-authenticate');
+                    showStatus('spotify-status', 'Session expired. Please re-authenticate.', 'error');
+                    document.getElementById('spotify-setup').classList.remove('hidden');
+                    document.getElementById('spotify-player').classList.add('hidden');
+                    return;
+                }
+                
                 if (res.status === 204) {
                     document.getElementById('track-name').textContent = 'No track playing';
                     document.getElementById('artist-name').textContent = 'Open Spotify and play something';
+                    document.getElementById('album-art').innerHTML = '🎵';
+                    document.getElementById('play-btn').textContent = '▶';
+                    return;
+                }
+                
+                if (!res.ok) {
+                    console.error('Spotify API error:', res.status);
                     return;
                 }
                 
                 const data = await res.json();
-                if (data.item) {
+                if (data && data.item) {
                     document.getElementById('track-name').textContent = data.item.name;
                     document.getElementById('artist-name').textContent = data.item.artists.map(a => a.name).join(', ');
                     
-                    if (data.item.album.images[0]) {
+                    if (data.item.album.images && data.item.album.images[0]) {
                         document.getElementById('album-art').innerHTML = `<img src="${data.item.album.images[0].url}" alt="Album">`;
                     }
                     
-                    const progress = (data.progress_ms / data.item.duration_ms) * 100;
-                    document.getElementById('track-progress').style.width = progress + '%';
+                    if (data.progress_ms && data.item.duration_ms) {
+                        const progress = (data.progress_ms / data.item.duration_ms) * 100;
+                        document.getElementById('track-progress').style.width = progress + '%';
+                    }
                     
                     document.getElementById('play-btn').textContent = data.is_playing ? '⏸' : '▶';
                 }
@@ -635,12 +679,25 @@
         }
 
         async function spotifyControl(action) {
+            if (!state.spotify.token) return;
+            
             try {
-                await fetch(`https://api.spotify.com/v1/me/player/${action}`, {
-                    method: 'POST',
+                const endpoint = action === 'play' || action === 'pause' 
+                    ? `https://api.spotify.com/v1/me/player/${action}`
+                    : `https://api.spotify.com/v1/me/player/${action}`;
+                    
+                const res = await fetch(endpoint, {
+                    method: action === 'previous' ? 'POST' : 'PUT',
                     headers: { 'Authorization': 'Bearer ' + state.spotify.token }
                 });
-                setTimeout(updateCurrentTrack, 500);
+                
+                if (res.status === 204 || res.status === 200) {
+                    setTimeout(updateCurrentTrack, 500);
+                } else if (res.status === 404) {
+                    showStatus('spotify-status', 'No active device found. Open Spotify on a device first.', 'error');
+                } else {
+                    console.error('Control error:', res.status);
+                }
             } catch (e) {
                 console.error('Control error:', e);
             }
@@ -704,16 +761,48 @@
                     return;
                 }
                 
-                const colors = ['#ff6b6b', '#4ecdc4', '#95e1d3', '#f38181', '#a8e6cf'];
+                // Operator logos mapping
+                const operatorLogos = {
+                    'Southern': 'https://upload.wikimedia.org/wikipedia/en/thumb/8/8a/Southern_Rail_logo.svg/200px-Southern_Rail_logo.svg.png',
+                    'Thameslink': 'https://upload.wikimedia.org/wikipedia/en/thumb/e/e4/Thameslink_logo.svg/200px-Thameslink_logo.svg.png',
+                    'Southeastern': 'https://upload.wikimedia.org/wikipedia/en/thumb/4/44/Southeastern_trains_logo.svg/200px-Southeastern_trains_logo.svg.png',
+                    'South Western Railway': 'https://upload.wikimedia.org/wikipedia/en/thumb/c/c4/South_Western_Railway_logo.svg/200px-South_Western_Railway_logo.svg.png',
+                    'Great Western Railway': 'https://upload.wikimedia.org/wikipedia/en/thumb/4/4c/Great_Western_Railway_logo.svg/200px-Great_Western_Railway_logo.svg.png',
+                    'CrossCountry': 'https://upload.wikimedia.org/wikipedia/en/thumb/b/b2/CrossCountry_logo.svg/200px-CrossCountry_logo.svg.png',
+                    'Avanti West Coast': 'https://upload.wikimedia.org/wikipedia/en/thumb/2/22/Avanti_West_Coast_logo.svg/200px-Avanti_West_Coast_logo.svg.png',
+                    'LNER': 'https://upload.wikimedia.org/wikipedia/en/thumb/3/34/LNER_logo.svg/200px-LNER_logo.svg.png',
+                    'TransPennine Express': 'https://upload.wikimedia.org/wikipedia/en/thumb/c/ce/TransPennine_Express_logo_%282023%29.svg/200px-TransPennine_Express_logo_%282023%29.svg.png',
+                    'Northern': 'https://upload.wikimedia.org/wikipedia/en/thumb/f/f8/Northern_Trains_logo.svg/200px-Northern_Trains_logo.svg.png',
+                    'ScotRail': 'https://upload.wikimedia.org/wikipedia/en/thumb/9/9e/ScotRail_2022_logo.svg/200px-ScotRail_2022_logo.svg.png',
+                    'Greater Anglia': 'https://upload.wikimedia.org/wikipedia/en/thumb/9/98/Greater_Anglia_logo.svg/200px-Greater_Anglia_logo.svg.png',
+                    'c2c': 'https://upload.wikimedia.org/wikipedia/en/thumb/b/b3/C2c_rail_logo.svg/200px-C2c_rail_logo.svg.png',
+                    'Chiltern Railways': 'https://upload.wikimedia.org/wikipedia/en/thumb/a/a3/Chiltern_Railways_logo.svg/200px-Chiltern_Railways_logo.svg.png',
+                    'East Midlands Railway': 'https://upload.wikimedia.org/wikipedia/en/thumb/d/d4/East_Midlands_Railway_logo.svg/200px-East_Midlands_Railway_logo.svg.png',
+                    'West Midlands Railway': 'https://upload.wikimedia.org/wikipedia/en/thumb/8/89/West_Midlands_Railway_logo.svg/200px-West_Midlands_Railway_logo.svg.png',
+                    'London Overground': 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/London_Overground_roundel.svg/100px-London_Overground_roundel.svg.png',
+                    'Elizabeth line': 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Elizabeth_line_roundel.svg/100px-Elizabeth_line_roundel.svg.png',
+                    'Merseyrail': 'https://upload.wikimedia.org/wikipedia/en/thumb/7/7f/Merseyrail_logo.svg/200px-Merseyrail_logo.svg.png',
+                    'Caledonian Sleeper': 'https://upload.wikimedia.org/wikipedia/en/thumb/5/52/Caledonian_Sleeper_logo.svg/200px-Caledonian_Sleeper_logo.svg.png',
+                    'Grand Central': 'https://upload.wikimedia.org/wikipedia/en/thumb/b/b0/Grand_Central_rail_logo.svg/200px-Grand_Central_rail_logo.svg.png',
+                    'Hull Trains': 'https://upload.wikimedia.org/wikipedia/en/thumb/7/7e/Hull_Trains_logo.svg/200px-Hull_Trains_logo.svg.png',
+                    'Heathrow Express': 'https://upload.wikimedia.org/wikipedia/en/thumb/2/28/Heathrow_Express_logo.svg/200px-Heathrow_Express_logo.svg.png',
+                    'Gatwick Express': 'https://upload.wikimedia.org/wikipedia/en/thumb/d/d2/Gatwick_Express_logo.svg/200px-Gatwick_Express_logo.svg.png',
+                    'TfL Rail': 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/42/TfL_Rail_roundel.svg/100px-TfL_Rail_roundel.svg.png'
+                };
                 
                 const html = depData.departures.all.slice(0, 6).map((dep, i) => {
                     const etaMins = Math.round((new Date(dep.aimed_departure_time) - new Date()) / 60000);
+                    const operatorName = dep.operator_name;
+                    const logo = operatorLogos[operatorName];
+                    
                     return `
                         <div class="departure">
-                            <div class="line-badge" style="background: ${colors[i % colors.length]};">${dep.operator_name.substring(0, 3).toUpperCase()}</div>
+                            <div class="line-badge" style="${logo ? 'background: white; padding: 5px;' : 'background: #4ecdc4;'}">
+                                ${logo ? `<img src="${logo}" alt="${operatorName}" style="height: 40px; width: auto; display: block;">` : operatorName.substring(0, 3).toUpperCase()}
+                            </div>
                             <div class="departure-info">
                                 <div class="destination">${dep.destination_name}</div>
-                                <div class="platform">Platform ${dep.platform || 'TBA'}</div>
+                                <div class="platform">Platform ${dep.platform || 'TBA'} • ${operatorName}</div>
                             </div>
                             <div class="time-info">
                                 <div class="eta">${etaMins > 0 ? etaMins + ' min' : 'Due'}</div>
