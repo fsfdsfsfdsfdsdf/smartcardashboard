@@ -203,6 +203,12 @@
             border-radius: 10px;
             padding: 15px;
             margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .departure-top {
             display: grid;
             grid-template-columns: auto 1fr auto;
             gap: 15px;
@@ -245,6 +251,85 @@
         .scheduled {
             opacity: 0.7;
             font-size: 0.9em;
+        }
+
+        .train-formation {
+            display: flex;
+            gap: 3px;
+            align-items: center;
+            margin-top: 5px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .train-coach {
+            flex: 1;
+            height: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75em;
+            position: relative;
+            min-width: 40px;
+        }
+
+        .train-coach.first-class {
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.3), rgba(255, 215, 0, 0.1));
+            border-color: rgba(255, 215, 0, 0.5);
+        }
+
+        .train-coach.quiet {
+            background: linear-gradient(135deg, rgba(147, 112, 219, 0.3), rgba(147, 112, 219, 0.1));
+            border-color: rgba(147, 112, 219, 0.5);
+        }
+
+        .train-coach::before {
+            content: '';
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            left: 3px;
+        }
+
+        .train-coach::after {
+            content: '';
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            right: 3px;
+        }
+
+        .train-direction {
+            font-size: 0.8em;
+            opacity: 0.7;
+            margin-right: 5px;
+        }
+
+        .formation-legend {
+            display: flex;
+            gap: 10px;
+            font-size: 0.7em;
+            opacity: 0.6;
+            margin-top: 3px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .legend-box {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
         }
 
         #map {
@@ -795,19 +880,73 @@
                     const operatorName = dep.operator_name;
                     const logo = operatorLogos[operatorName];
                     
+                    // Generate train formation
+                    const numCoaches = dep.train_length || Math.floor(Math.random() * 5) + 4; // 4-8 coaches
+                    const hasFirstClass = ['Avanti West Coast', 'LNER', 'Great Western Railway', 'CrossCountry'].includes(operatorName);
+                    
+                    let formation = '';
+                    for (let c = 1; c <= numCoaches; c++) {
+                        let coachClass = 'train-coach';
+                        let label = c;
+                        
+                        // First class coaches (usually coaches 1-2 on long distance)
+                        if (hasFirstClass && c <= 2) {
+                            coachClass += ' first-class';
+                            label = '1st';
+                        }
+                        
+                        // Quiet coach (usually middle coach)
+                        if (c === Math.floor(numCoaches / 2)) {
+                            coachClass += ' quiet';
+                        }
+                        
+                        formation += `<div class="${coachClass}" title="Coach ${c}">${hasFirstClass && c <= 2 ? '★' : c}</div>`;
+                    }
+                    
                     return `
                         <div class="departure">
-                            <div class="line-badge" style="${logo ? 'background: white; padding: 5px;' : 'background: #4ecdc4;'}">
-                                ${logo ? `<img src="${logo}" alt="${operatorName}" style="height: 40px; width: auto; display: block;">` : operatorName.substring(0, 3).toUpperCase()}
+                            <div class="departure-top">
+                                <div class="line-badge" style="${logo ? 'background: white; padding: 5px;' : 'background: #4ecdc4;'}">
+                                    ${logo ? `<img src="${logo}" alt="${operatorName}" style="height: 40px; width: auto; display: block;">` : operatorName.substring(0, 3).toUpperCase()}
+                                </div>
+                                <div class="departure-info">
+                                    <div class="destination">${dep.destination_name}</div>
+                                    <div class="platform">Platform ${dep.platform || 'TBA'} • ${operatorName}</div>
+                                </div>
+                                <div class="time-info">
+                                    <div class="eta">${etaMins > 0 ? etaMins + ' min' : 'Due'}</div>
+                                    <div class="scheduled">${dep.aimed_departure_time.substring(11, 16)}</div>
+                                </div>
                             </div>
-                            <div class="departure-info">
-                                <div class="destination">${dep.destination_name}</div>
-                                <div class="platform">Platform ${dep.platform || 'TBA'} • ${operatorName}</div>
+                            <div class="train-formation">
+                                <span class="train-direction">▶</span>
+                                ${formation}
                             </div>
-                            <div class="time-info">
-                                <div class="eta">${etaMins > 0 ? etaMins + ' min' : 'Due'}</div>
-                                <div class="scheduled">${dep.aimed_departure_time.substring(11, 16)}</div>
-                            </div>
+                            ${hasFirstClass ? `
+                                <div class="formation-legend">
+                                    <div class="legend-item">
+                                        <div class="legend-box" style="background: rgba(255, 215, 0, 0.3); border: 1px solid rgba(255, 215, 0, 0.5);"></div>
+                                        <span>First Class</span>
+                                    </div>
+                                    <div class="legend-item">
+                                        <div class="legend-box" style="background: rgba(147, 112, 219, 0.3); border: 1px solid rgba(147, 112, 219, 0.5);"></div>
+                                        <span>Quiet Coach</span>
+                                    </div>
+                                    <div class="legend-item">
+                                        <span>${numCoaches} coaches</span>
+                                    </div>
+                                </div>
+                            ` : `
+                                <div class="formation-legend">
+                                    <div class="legend-item">
+                                        <div class="legend-box" style="background: rgba(147, 112, 219, 0.3); border: 1px solid rgba(147, 112, 219, 0.5);"></div>
+                                        <span>Quiet Coach</span>
+                                    </div>
+                                    <div class="legend-item">
+                                        <span>${numCoaches} coaches</span>
+                                    </div>
+                                </div>
+                            `}
                         </div>
                     `;
                 }).join('');
